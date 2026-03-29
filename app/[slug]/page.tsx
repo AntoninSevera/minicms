@@ -8,19 +8,35 @@ type TripDetailPageProps = {
 };
 
 const resolveBaseUrl = () => process.env.NEXTAUTH_URL ?? "http://localhost:3000";
+const hasDatabaseUrl = () => Boolean(process.env.DATABASE_URL);
 
 export async function generateStaticParams() {
-  const latestTrips = await prisma.trip.findMany({
-    where: { published: true },
-    orderBy: { publishDate: "desc" },
-    take: 20,
-    select: { slug: true },
-  });
+  if (!hasDatabaseUrl()) {
+    return [];
+  }
 
-  return latestTrips.map((trip) => ({ slug: trip.slug }));
+  try {
+    const latestTrips = await prisma.trip.findMany({
+      where: { published: true },
+      orderBy: { publishDate: "desc" },
+      take: 20,
+      select: { slug: true },
+    });
+
+    return latestTrips.map((trip) => ({ slug: trip.slug }));
+  } catch {
+    return [];
+  }
 }
 
 export async function generateMetadata({ params }: TripDetailPageProps): Promise<Metadata> {
+  if (!hasDatabaseUrl()) {
+    return {
+      title: "Cestovatelsky denik",
+      description: "Publikovane cestovatelske clanky.",
+    };
+  }
+
   const { slug } = await params;
 
   const trip = await prisma.trip.findFirst({
@@ -54,6 +70,10 @@ export async function generateMetadata({ params }: TripDetailPageProps): Promise
 }
 
 export default async function TripDetailPage({ params }: TripDetailPageProps) {
+  if (!hasDatabaseUrl()) {
+    notFound();
+  }
+
   const { slug } = await params;
 
   const trip = await prisma.trip.findFirst({

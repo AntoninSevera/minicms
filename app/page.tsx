@@ -10,6 +10,7 @@ type HomePageProps = {
 
 export default async function HomePage({ searchParams }: HomePageProps) {
   const { tag } = await searchParams;
+  const hasDatabaseUrl = Boolean(process.env.DATABASE_URL);
 
   const where: Prisma.TripWhereInput = {
     published: true,
@@ -22,26 +23,28 @@ export default async function HomePage({ searchParams }: HomePageProps) {
       : {}),
   };
 
-  const [trips, tags] = await Promise.all([
-    prisma.trip.findMany({
-      where,
-      include: {
-        author: { select: { name: true } },
-        tags: { select: { id: true, name: true, slug: true } },
-      },
-      orderBy: { publishDate: "desc" },
-    }),
-    prisma.tag.findMany({
-      where: {
-        trips: {
-          some: {
-            published: true,
+  const [trips, tags] = hasDatabaseUrl
+    ? await Promise.all([
+        prisma.trip.findMany({
+          where,
+          include: {
+            author: { select: { name: true } },
+            tags: { select: { id: true, name: true, slug: true } },
           },
-        },
-      },
-      orderBy: { name: "asc" },
-    }),
-  ]);
+          orderBy: { publishDate: "desc" },
+        }),
+        prisma.tag.findMany({
+          where: {
+            trips: {
+              some: {
+                published: true,
+              },
+            },
+          },
+          orderBy: { name: "asc" },
+        }),
+      ])
+    : [[], []];
 
   return (
     <main className="mx-auto max-w-6xl space-y-6 p-6">
@@ -75,6 +78,11 @@ export default async function HomePage({ searchParams }: HomePageProps) {
       </section>
 
       <section className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        {!hasDatabaseUrl ? (
+          <p className="text-sm text-slate-600">
+            Databaze neni nakonfigurovana. Nastav DATABASE_URL pro nacteni obsahu.
+          </p>
+        ) : null}
         {trips.map((trip) => (
           <Card key={trip.id} as={Link} href={`/${trip.slug}`} className="hover:shadow-md">
             <CardHeader className="pb-0">

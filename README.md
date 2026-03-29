@@ -112,6 +112,7 @@ Vystup testu je ve formatu PASS/FAIL pro kazdy krok.
 - Datasource je nastaven na PostgreSQL v prisma/schema.prisma.
 - Pred nasazenim nastav produkcni DATABASE_URL a NEXTAUTH_SECRET.
 - Po prvnim deployi proved migrace v produkcnim prostredi.
+- Ve Vercel nastav DATABASE_URL minimalne pro Production i Preview (a dle potreby i Development), aby byla databaze dostupna pri behu aplikace.
 
 ## Production checklist
 

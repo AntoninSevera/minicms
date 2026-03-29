@@ -30,6 +30,16 @@
 				"build"
 			],
 			"isBackground": false
+		},
+		{
+			"label": "Isolated Build Check",
+			"type": "shell",
+			"command": "npm",
+			"args": [
+				"run",
+				"build"
+			],
+			"isBackground": false
 		}
 	]
 }

@@ -8,9 +8,14 @@ type HomePageProps = {
   searchParams: Promise<{ tag?: string }>;
 };
 
+const hasValidDatabaseUrl = () => {
+  const databaseUrl = process.env.DATABASE_URL;
+  return Boolean(databaseUrl && /^(postgresql|postgres):\/\//.test(databaseUrl));
+};
+
 export default async function HomePage({ searchParams }: HomePageProps) {
   const { tag } = await searchParams;
-  const hasDatabaseUrl = Boolean(process.env.DATABASE_URL);
+  const hasDatabaseUrl = hasValidDatabaseUrl();
 
   const where: Prisma.TripWhereInput = {
     published: true,
@@ -43,7 +48,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
           },
           orderBy: { name: "asc" },
         }),
-      ])
+      ]).catch(() => [[], []])
     : [[], []];
 
   return (

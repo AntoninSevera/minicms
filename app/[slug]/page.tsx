@@ -8,7 +8,10 @@ type TripDetailPageProps = {
 };
 
 const resolveBaseUrl = () => process.env.NEXTAUTH_URL ?? "http://localhost:3000";
-const hasDatabaseUrl = () => Boolean(process.env.DATABASE_URL);
+const hasDatabaseUrl = () => {
+  const databaseUrl = process.env.DATABASE_URL;
+  return Boolean(databaseUrl && /^(postgresql|postgres):\/\//.test(databaseUrl));
+};
 
 export async function generateStaticParams() {
   if (!hasDatabaseUrl()) {
@@ -39,14 +42,23 @@ export async function generateMetadata({ params }: TripDetailPageProps): Promise
 
   const { slug } = await params;
 
-  const trip = await prisma.trip.findFirst({
-    where: { slug, published: true },
-    select: {
-      title: true,
-      description: true,
-      slug: true,
-    },
-  });
+  let trip: { title: string; description: string; slug: string } | null = null;
+
+  try {
+    trip = await prisma.trip.findFirst({
+      where: { slug, published: true },
+      select: {
+        title: true,
+        description: true,
+        slug: true,
+      },
+    });
+  } catch {
+    return {
+      title: "Cestovatelsky denik",
+      description: "Publikovane cestovatelske clanky.",
+    };
+  }
 
   if (!trip) {
     return {
@@ -76,13 +88,26 @@ export default async function TripDetailPage({ params }: TripDetailPageProps) {
 
   const { slug } = await params;
 
-  const trip = await prisma.trip.findFirst({
-    where: { slug, published: true },
-    include: {
-      author: { select: { name: true } },
-      tags: { select: { id: true, name: true } },
-    },
-  });
+  let trip: {
+    title: string;
+    publishDate: Date;
+    description: string;
+    content: string;
+    author: { name: string | null };
+    tags: Array<{ id: string; name: string }>;
+  } | null = null;
+
+  try {
+    trip = await prisma.trip.findFirst({
+      where: { slug, published: true },
+      include: {
+        author: { select: { name: true } },
+        tags: { select: { id: true, name: true } },
+      },
+    });
+  } catch {
+    notFound();
+  }
 
   if (!trip) {
     notFound();

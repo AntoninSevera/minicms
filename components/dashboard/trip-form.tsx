@@ -45,13 +45,13 @@ type Trip = {
 };
 
 const tripFormSchema = z.object({
-  title: z.string().min(1),
-  slug: z.string().min(1),
-  description: z.string().min(1),
-  content: z.string().min(1),
+  title: z.string().trim().min(1, { message: "Toto pole je povinne" }),
+  slug: z.string().trim().min(1, { message: "Toto pole je povinne" }),
+  description: z.string().trim().min(1, { message: "Toto pole je povinne" }),
+  content: z.string().min(1, { message: "Toto pole je povinne" }),
   mainImageUrl: z.string().optional(),
   galleryImageUrls: z.array(z.string()),
-  publishDate: z.string().min(1),
+  publishDate: z.string().min(1, { message: "Toto pole je povinne" }),
   published: z.boolean(),
   tagIds: z.array(z.string()),
 });
@@ -164,7 +164,10 @@ export function TripForm({ mode, tripId }: TripFormProps) {
 
   useEffect(() => {
     if (!slugValue) {
-      setValue("slug", slugify(titleValue), { shouldValidate: true });
+      setValue("slug", slugify(titleValue), {
+        shouldValidate: true,
+        shouldDirty: true,
+      });
     }
   }, [titleValue, slugValue, setValue]);
 
@@ -226,12 +229,21 @@ export function TripForm({ mode, tripId }: TripFormProps) {
             errorMessage={errors.title?.message}
           />
 
-          <Input
-            label="Slug"
-            placeholder="napr-vikend-v-rime"
-            {...register("slug")}
-            isInvalid={Boolean(errors.slug)}
-            errorMessage={errors.slug?.message}
+          <Controller
+            control={control}
+            name="slug"
+            render={({ field }) => (
+              <Input
+                label="URL adresa (slug)"
+                placeholder="napr-vikend-ve-stockholmu"
+                description="Bude pouzito v adrese: /vikend-ve-stockholmu. Pokud nevyplnite, vygeneruje se automaticky z nazvu."
+                value={field.value}
+                onValueChange={field.onChange}
+                onBlur={field.onBlur}
+                isInvalid={Boolean(errors.slug)}
+                errorMessage={errors.slug?.message}
+              />
+            )}
           />
 
           <Textarea

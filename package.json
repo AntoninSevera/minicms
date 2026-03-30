@@ -21,6 +21,7 @@
     "@tiptap/react": "^3.21.0",
     "@tiptap/starter-kit": "^3.21.0",
     "@types/bcryptjs": "^2.4.6",
+    "@vercel/blob": "^2.3.2",
     "bcryptjs": "^3.0.3",
     "next": "^15.2.2",
     "next-auth": "^4.24.13",

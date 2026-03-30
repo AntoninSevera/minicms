@@ -19,10 +19,11 @@ import {
 } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
+import { uploadImagesAction } from "@/app/lib/actions/upload";
 import { RichTextEditor } from "@/components/dashboard/rich-text-editor";
 
 type Tag = {
@@ -106,6 +107,10 @@ const isValidHttpUrl = (value?: string | null) => {
 export function TripForm({ mode, tripId }: TripFormProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const [mainImageFile, setMainImageFile] = useState<File | null>(null);
+  const [galleryFiles, setGalleryFiles] = useState<File[]>([]);
+  const [mainImagePreviewUrl, setMainImagePreviewUrl] = useState<string | null>(null);
+  const [galleryPreviewUrls, setGalleryPreviewUrls] = useState<string[]>([]);
 
   const tagsQuery = useQuery({
     queryKey: ["tags"],
@@ -154,8 +159,38 @@ export function TripForm({ mode, tripId }: TripFormProps) {
         published: tripQuery.data.published,
         tagIds: tripQuery.data.tags.map((tag) => tag.id),
       });
+      setMainImageFile(null);
+      setGalleryFiles([]);
     }
   }, [mode, reset, tripQuery.data]);
+
+  useEffect(() => {
+    if (!mainImageFile) {
+      setMainImagePreviewUrl(null);
+      return;
+    }
+
+    const previewUrl = URL.createObjectURL(mainImageFile);
+    setMainImagePreviewUrl(previewUrl);
+
+    return () => {
+      URL.revokeObjectURL(previewUrl);
+    };
+  }, [mainImageFile]);
+
+  useEffect(() => {
+    if (galleryFiles.length === 0) {
+      setGalleryPreviewUrls([]);
+      return;
+    }
+
+    const previewUrls = galleryFiles.map((file) => URL.createObjectURL(file));
+    setGalleryPreviewUrls(previewUrls);
+
+    return () => {
+      previewUrls.forEach((previewUrl) => URL.revokeObjectURL(previewUrl));
+    };
+  }, [galleryFiles]);
 
   const titleValue = watch("title");
   const slugValue = watch("slug");
@@ -173,11 +208,29 @@ export function TripForm({ mode, tripId }: TripFormProps) {
 
   const saveMutation = useMutation({
     mutationFn: async (values: FormValues) => {
-      const cleanedGallery = values.galleryImageUrls.filter((item) => item.trim().length > 0);
+      let nextMainImageUrl = values.mainImageUrl;
+      let nextGalleryImageUrls = values.galleryImageUrls.filter((item) => item.trim().length > 0);
+
+      if (mainImageFile) {
+        const formData = new FormData();
+        formData.append("files", mainImageFile);
+
+        const uploadedMainImage = await uploadImagesAction(formData);
+        nextMainImageUrl = uploadedMainImage.urls[0] ?? nextMainImageUrl;
+      }
+
+      if (galleryFiles.length > 0) {
+        const formData = new FormData();
+        galleryFiles.forEach((file) => formData.append("files", file));
+
+        const uploadedGallery = await uploadImagesAction(formData);
+        nextGalleryImageUrls = [...nextGalleryImageUrls, ...uploadedGallery.urls];
+      }
+
       const payload = {
         ...values,
-        mainImageUrl: values.mainImageUrl || undefined,
-        galleryImageUrls: cleanedGallery,
+        mainImageUrl: nextMainImageUrl || undefined,
+        galleryImageUrls: nextGalleryImageUrls,
         publishDate: new Date(values.publishDate),
       };
 
@@ -200,6 +253,8 @@ export function TripForm({ mode, tripId }: TripFormProps) {
       if (tripId) {
         queryClient.invalidateQueries({ queryKey: ["trip", tripId] });
       }
+      setMainImageFile(null);
+      setGalleryFiles([]);
       toast.success("Cesta byla uspesne ulozena.");
       router.push("/dashboard/trips");
       router.refresh();
@@ -256,20 +311,25 @@ export function TripForm({ mode, tripId }: TripFormProps) {
             errorMessage={errors.description?.message}
           />
 
-          <Input
-            label="Main image URL"
-            placeholder="https://images.example.com/hero.jpg"
-            {...register("mainImageUrl")}
-            isInvalid={Boolean(errors.mainImageUrl)}
-            errorMessage={errors.mainImageUrl?.message}
-          />
+          <div className="space-y-2">
+            <p className="text-sm font-medium">Hlavni obrazek</p>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(event) => {
+                setMainImageFile(event.target.files?.[0] ?? null);
+              }}
+              className="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+            />
+            <p className="text-xs text-slate-500">Povolene jsou pouze obrazky do velikosti 4 MB.</p>
+          </div>
 
-          {isValidHttpUrl(mainImageUrlValue) ? (
+          {mainImagePreviewUrl || isValidHttpUrl(mainImageUrlValue) ? (
             <Card shadow="sm">
               <CardHeader className="pb-0 text-sm text-slate-600">Nahled hlavniho obrazku</CardHeader>
               <CardBody>
                 <img
-                  src={mainImageUrlValue}
+                  src={mainImagePreviewUrl ?? mainImageUrlValue}
                   alt="Nahled hlavniho obrazku"
                   className="h-44 w-full rounded-lg object-cover"
                 />
@@ -280,63 +340,50 @@ export function TripForm({ mode, tripId }: TripFormProps) {
           <Card shadow="sm">
             <CardHeader className="flex items-center justify-between gap-2">
               <span className="text-sm font-medium">Galerie obrazku</span>
-              <Button
-                type="button"
-                size="sm"
-                variant="flat"
-                onClick={() =>
-                  setValue("galleryImageUrls", [...(galleryImageUrlsValue ?? []), ""], {
-                    shouldDirty: true,
-                  })
-                }
-              >
-                Pridat URL
-              </Button>
             </CardHeader>
             <CardBody className="space-y-3">
-              {(galleryImageUrlsValue ?? []).length === 0 ? (
-                <p className="text-sm text-slate-500">Zatim zadny obrazek v galerii.</p>
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={(event) => {
+                  setGalleryFiles(Array.from(event.target.files ?? []));
+                }}
+                className="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+              />
+              <p className="text-xs text-slate-500">Vyberte jeden nebo vice obrazku pro galerii (max 4 MB / soubor).</p>
+
+              {(galleryImageUrlsValue ?? []).length > 0 ? (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">Aktualne ulozene obrazky</p>
+                  <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+                    {galleryImageUrlsValue.map((galleryUrl, index) => (
+                      <img
+                        key={`${galleryUrl}-${index}`}
+                        src={galleryUrl}
+                        alt={`Ulozena galerie ${index + 1}`}
+                        className="h-28 w-full rounded-lg object-cover"
+                      />
+                    ))}
+                  </div>
+                </div>
               ) : null}
 
-              {(galleryImageUrlsValue ?? []).map((_, index) => {
-                const galleryUrl = galleryImageUrlsValue?.[index];
-
-                return (
-                  <div key={index} className="space-y-2 rounded-lg border border-slate-200 p-3">
-                    <div className="flex gap-2">
-                      <Input
-                        label={`Galerie URL #${index + 1}`}
-                        placeholder="https://images.example.com/gallery-1.jpg"
-                        {...register(`galleryImageUrls.${index}` as const)}
-                        isInvalid={Boolean(errors.galleryImageUrls?.[index])}
-                        errorMessage={errors.galleryImageUrls?.[index]?.message}
-                      />
-                      <Button
-                        type="button"
-                        color="danger"
-                        variant="flat"
-                        className="mt-6"
-                        onClick={() => {
-                          const nextValues = (galleryImageUrlsValue ?? []).filter(
-                            (_, itemIndex) => itemIndex !== index,
-                          );
-                          setValue("galleryImageUrls", nextValues, { shouldDirty: true });
-                        }}
-                      >
-                        Odebrat
-                      </Button>
-                    </div>
-
-                    {isValidHttpUrl(galleryUrl) ? (
+              {galleryPreviewUrls.length > 0 ? (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">Nahled novych souboru</p>
+                  <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+                    {galleryPreviewUrls.map((previewUrl, index) => (
                       <img
-                        src={galleryUrl}
+                        key={`${previewUrl}-${index}`}
+                        src={previewUrl}
                         alt={`Nahled galerie ${index + 1}`}
-                        className="h-32 w-full rounded-lg object-cover"
+                        className="h-28 w-full rounded-lg object-cover"
                       />
-                    ) : null}
+                    ))}
                   </div>
-                );
-              })}
+                </div>
+              ) : null}
             </CardBody>
           </Card>
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import Link from "next/link";
 import { signIn } from "next-auth/react";
 
 export default function LoginPage() {
@@ -76,6 +77,13 @@ export default function LoginPage() {
         >
           {isSubmitting ? "Prihlasuji..." : "Prihlasit se"}
         </button>
+    
+        <Link
+          href="/register"
+          className="mt-4 block text-center text-sm text-gray-600 hover:underline"
+        >
+          Nemate ucet? Zaregistrovat se
+        </Link>
       </form>
     </main>
   );

@@ -1,8 +1,6 @@
 import { Chip } from "@nextui-org/react";
 import type { Metadata } from "next";
-import Image from "next/image";
 import { notFound } from "next/navigation";
-import { TripGalleryCarousel } from "@/components/public/trip-gallery-carousel";
 import { prisma } from "@/lib/prisma";
 
 type TripDetailPageProps = {
@@ -10,8 +8,6 @@ type TripDetailPageProps = {
 };
 
 const resolveBaseUrl = () => process.env.NEXTAUTH_URL ?? "http://localhost:3000";
-const PLACEHOLDER_IMAGE_URL =
-  "https://images.unsplash.com/photo-1469474968028-56623f02e42e?auto=format&fit=crop&w=1600&q=80";
 
 const isValidImageUrl = (value?: string | null) => {
   if (!value) {
@@ -24,14 +20,6 @@ const isValidImageUrl = (value?: string | null) => {
   } catch {
     return false;
   }
-};
-
-const resolveImageUrl = (value?: string | null): string => {
-  if (value && isValidImageUrl(value)) {
-    return value;
-  }
-
-  return PLACEHOLDER_IMAGE_URL;
 };
 
 const readMainImageUrl = (value: unknown): string | null => {
@@ -118,6 +106,18 @@ export async function generateMetadata({ params }: TripDetailPageProps): Promise
   }
 
   const url = `${resolveBaseUrl()}/${trip.slug}`;
+  const mainImageUrl = readMainImageUrl(trip);
+  const openGraphImages =
+    mainImageUrl && isValidImageUrl(mainImageUrl)
+      ? [
+          {
+            url: mainImageUrl,
+            width: 1600,
+            height: 900,
+            alt: `Nahled clanku ${trip.title}`,
+          },
+        ]
+      : undefined;
 
   return {
     title: trip.title,
@@ -127,14 +127,7 @@ export async function generateMetadata({ params }: TripDetailPageProps): Promise
       title: trip.title,
       description: trip.description,
       url,
-      images: [
-        {
-          url: resolveImageUrl(readMainImageUrl(trip)),
-          width: 1600,
-          height: 900,
-          alt: `Nahled clanku ${trip.title}`,
-        },
-      ],
+      images: openGraphImages,
     },
   };
 }
@@ -151,7 +144,14 @@ export default async function TripDetailPage({ params }: TripDetailPageProps) {
   try {
     trip = await prisma.trip.findFirst({
       where: { slug, published: true },
-      include: {
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        content: true,
+        publishDate: true,
+        mainImageUrl: true,
+        galleryImageUrls: true,
         author: { select: { name: true } },
         tags: { select: { id: true, name: true } },
       },
@@ -164,7 +164,7 @@ export default async function TripDetailPage({ params }: TripDetailPageProps) {
     notFound();
   }
 
-  const heroImage = resolveImageUrl(readMainImageUrl(trip));
+  const heroImage = readMainImageUrl(trip);
   const galleryImageUrls = readGalleryImageUrls(trip);
 
   return (
@@ -184,24 +184,36 @@ export default async function TripDetailPage({ params }: TripDetailPageProps) {
         </div>
       </header>
 
-      <section className="relative h-[300px] w-full overflow-hidden rounded-2xl sm:h-[430px]">
-        <Image
-          src={heroImage}
-          alt={`Hlavni obrazek clanku ${trip.title}`}
-          fill
-          unoptimized
-          sizes="(max-width: 1024px) 100vw, 1024px"
-          className="object-cover"
-          priority
-        />
-      </section>
+      {heroImage && isValidImageUrl(heroImage) ? (
+        <section>
+          <img
+            src={heroImage}
+            alt={trip.title}
+            className="h-auto w-full rounded-xl object-cover"
+          />
+        </section>
+      ) : null}
 
       <article
         className="prose prose-slate max-w-none"
         dangerouslySetInnerHTML={{ __html: trip.content }}
       />
 
-      <TripGalleryCarousel images={galleryImageUrls} tripTitle={trip.title} />
+      {galleryImageUrls.length > 0 ? (
+        <section className="space-y-3">
+          <h2 className="text-2xl font-semibold">Galerie</h2>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
+            {galleryImageUrls.map((imageUrl, index) => (
+              <img
+                key={`${imageUrl}-${index}`}
+                src={imageUrl}
+                alt={`${trip.title} - galerie ${index + 1}`}
+                className="h-56 w-full rounded-xl object-cover"
+              />
+            ))}
+          </div>
+        </section>
+      ) : null}
     </main>
   );
 }

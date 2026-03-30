@@ -173,10 +173,10 @@ export default async function TripDetailPage({ params }: TripDetailPageProps) {
     <main className="mx-auto max-w-4xl space-y-6 p-6">
       <header className="space-y-3">
         <Link
-          href="/dashboard"
+          href="/"
           className="inline-flex items-center text-sm font-medium text-gray-600 hover:text-gray-900"
         >
-          &larr; Zpet na Dashboard
+          &larr; Zpet na clanky
         </Link>
         <h1 className="text-3xl font-bold">{trip.title}</h1>
         <p className="text-sm text-slate-500">

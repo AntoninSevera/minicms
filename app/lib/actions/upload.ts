@@ -1,6 +1,6 @@
 "use server";
 
-import { put } from "@vercel/blob";
+import { del, put } from "@vercel/blob";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 
@@ -51,4 +51,19 @@ export async function uploadImagesAction(formData: FormData): Promise<{ urls: st
   }
 
   return { urls: uploadedUrls };
+}
+
+export async function deleteBlobImage(url: string): Promise<{ deleted: boolean }> {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user?.id) {
+    throw new Error("Neautorizovany pristup ke smazani souboru.");
+  }
+
+  try {
+    await del(url);
+    return { deleted: true };
+  } catch {
+    return { deleted: false };
+  }
 }

@@ -23,7 +23,7 @@ import { useEffect, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
-import { uploadImagesAction } from "@/app/lib/actions/upload";
+import { deleteBlobImage, uploadImagesAction } from "@/app/lib/actions/upload";
 import { RichTextEditor } from "@/components/dashboard/rich-text-editor";
 
 type Tag = {
@@ -111,6 +111,7 @@ export function TripForm({ mode, tripId }: TripFormProps) {
   const [galleryFiles, setGalleryFiles] = useState<File[]>([]);
   const [mainImagePreviewUrl, setMainImagePreviewUrl] = useState<string | null>(null);
   const [galleryPreviewUrls, setGalleryPreviewUrls] = useState<string[]>([]);
+  const [urlsToDelete, setUrlsToDelete] = useState<string[]>([]);
 
   const tagsQuery = useQuery({
     queryKey: ["tags"],
@@ -161,6 +162,7 @@ export function TripForm({ mode, tripId }: TripFormProps) {
       });
       setMainImageFile(null);
       setGalleryFiles([]);
+      setUrlsToDelete([]);
     }
   }, [mode, reset, tripQuery.data]);
 
@@ -197,6 +199,14 @@ export function TripForm({ mode, tripId }: TripFormProps) {
   const mainImageUrlValue = watch("mainImageUrl");
   const galleryImageUrlsValue = watch("galleryImageUrls");
 
+  const addUrlToDeleteQueue = (url?: string | null) => {
+    if (!url) {
+      return;
+    }
+
+    setUrlsToDelete((prev) => (prev.includes(url) ? prev : [...prev, url]));
+  };
+
   useEffect(() => {
     if (mode === "create" && !slugValue) {
       setValue("slug", slugify(titleValue), {
@@ -208,10 +218,17 @@ export function TripForm({ mode, tripId }: TripFormProps) {
 
   const saveMutation = useMutation({
     mutationFn: async (values: FormValues) => {
+      let nextUrlsToDelete = [...urlsToDelete];
       let nextMainImageUrl = values.mainImageUrl;
       let nextGalleryImageUrls = values.galleryImageUrls.filter((item) => item.trim().length > 0);
 
       if (mainImageFile) {
+        if (values.mainImageUrl) {
+          nextUrlsToDelete = nextUrlsToDelete.includes(values.mainImageUrl)
+            ? nextUrlsToDelete
+            : [...nextUrlsToDelete, values.mainImageUrl];
+        }
+
         const formData = new FormData();
         formData.append("files", mainImageFile);
 
@@ -234,19 +251,33 @@ export function TripForm({ mode, tripId }: TripFormProps) {
         publishDate: new Date(values.publishDate),
       };
 
+      const deleteQueue = Array.from(new Set(nextUrlsToDelete));
+
       if (mode === "edit" && tripId) {
-        return fetchJson(`/api/trips/${tripId}`, {
+        const updatedTrip = await fetchJson(`/api/trips/${tripId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
+
+        if (deleteQueue.length > 0) {
+          await Promise.allSettled(deleteQueue.map((url) => deleteBlobImage(url)));
+        }
+
+        return updatedTrip;
       }
 
-      return fetchJson("/api/trips", {
+      const createdTrip = await fetchJson("/api/trips", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
+
+      if (deleteQueue.length > 0) {
+        await Promise.allSettled(deleteQueue.map((url) => deleteBlobImage(url)));
+      }
+
+      return createdTrip;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["trips"] });
@@ -255,6 +286,7 @@ export function TripForm({ mode, tripId }: TripFormProps) {
       }
       setMainImageFile(null);
       setGalleryFiles([]);
+      setUrlsToDelete([]);
       toast.success("Cesta byla uspesne ulozena.");
       router.push("/dashboard/trips");
       router.refresh();
@@ -326,7 +358,26 @@ export function TripForm({ mode, tripId }: TripFormProps) {
 
           {mainImagePreviewUrl || isValidHttpUrl(mainImageUrlValue) ? (
             <Card shadow="sm">
-              <CardHeader className="pb-0 text-sm text-slate-600">Nahled hlavniho obrazku</CardHeader>
+              <CardHeader className="flex items-center justify-between gap-2 pb-0 text-sm text-slate-600">
+                <span>Nahled hlavniho obrazku</span>
+                {isValidHttpUrl(mainImageUrlValue) ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    color="danger"
+                    variant="flat"
+                    onClick={() => {
+                      addUrlToDeleteQueue(mainImageUrlValue);
+                      setValue("mainImageUrl", "", {
+                        shouldDirty: true,
+                        shouldValidate: true,
+                      });
+                    }}
+                  >
+                    Odstranit hlavni obrazek
+                  </Button>
+                ) : null}
+              </CardHeader>
               <CardBody>
                 <img
                   src={mainImagePreviewUrl ?? mainImageUrlValue}
@@ -358,12 +409,33 @@ export function TripForm({ mode, tripId }: TripFormProps) {
                   <p className="text-sm font-medium">Aktualne ulozene obrazky</p>
                   <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
                     {galleryImageUrlsValue.map((galleryUrl, index) => (
-                      <img
-                        key={`${galleryUrl}-${index}`}
-                        src={galleryUrl}
-                        alt={`Ulozena galerie ${index + 1}`}
-                        className="h-28 w-full rounded-lg object-cover"
-                      />
+                      <div key={`${galleryUrl}-${index}`} className="relative">
+                        <img
+                          src={galleryUrl}
+                          alt={`Ulozena galerie ${index + 1}`}
+                          className="h-28 w-full rounded-lg object-cover"
+                        />
+                        <Button
+                          type="button"
+                          size="sm"
+                          color="danger"
+                          variant="solid"
+                          className="absolute right-2 top-2 min-w-0 px-2"
+                          onClick={() => {
+                            addUrlToDeleteQueue(galleryUrl);
+                            setValue(
+                              "galleryImageUrls",
+                              (galleryImageUrlsValue ?? []).filter((_, itemIndex) => itemIndex !== index),
+                              {
+                                shouldDirty: true,
+                                shouldValidate: true,
+                              },
+                            );
+                          }}
+                        >
+                          X
+                        </Button>
+                      </div>
                     ))}
                   </div>
                 </div>

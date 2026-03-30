@@ -122,6 +122,7 @@ export function TripForm({ mode, tripId }: TripFormProps) {
     control,
     register,
     handleSubmit,
+    reset,
     setValue,
     watch,
     formState: { errors, isSubmitting },
@@ -141,21 +142,20 @@ export function TripForm({ mode, tripId }: TripFormProps) {
   });
 
   useEffect(() => {
-    if (tripQuery.data) {
-      setValue("title", tripQuery.data.title);
-      setValue("slug", tripQuery.data.slug);
-      setValue("description", tripQuery.data.description);
-      setValue("content", tripQuery.data.content);
-      setValue("mainImageUrl", tripQuery.data.mainImageUrl ?? "");
-      setValue("galleryImageUrls", tripQuery.data.galleryImageUrls ?? []);
-      setValue("publishDate", toLocalDateTimeInputValue(tripQuery.data.publishDate));
-      setValue("published", tripQuery.data.published);
-      setValue(
-        "tagIds",
-        tripQuery.data.tags.map((tag) => tag.id),
-      );
+    if (mode === "edit" && tripQuery.data) {
+      reset({
+        title: tripQuery.data.title,
+        slug: tripQuery.data.slug,
+        description: tripQuery.data.description,
+        content: tripQuery.data.content,
+        mainImageUrl: tripQuery.data.mainImageUrl ?? "",
+        galleryImageUrls: tripQuery.data.galleryImageUrls ?? [],
+        publishDate: toLocalDateTimeInputValue(tripQuery.data.publishDate),
+        published: tripQuery.data.published,
+        tagIds: tripQuery.data.tags.map((tag) => tag.id),
+      });
     }
-  }, [tripQuery.data, setValue]);
+  }, [mode, reset, tripQuery.data]);
 
   const titleValue = watch("title");
   const slugValue = watch("slug");
@@ -163,13 +163,13 @@ export function TripForm({ mode, tripId }: TripFormProps) {
   const galleryImageUrlsValue = watch("galleryImageUrls");
 
   useEffect(() => {
-    if (!slugValue) {
+    if (mode === "create" && !slugValue) {
       setValue("slug", slugify(titleValue), {
         shouldValidate: true,
         shouldDirty: true,
       });
     }
-  }, [titleValue, slugValue, setValue]);
+  }, [mode, titleValue, slugValue, setValue]);
 
   const saveMutation = useMutation({
     mutationFn: async (values: FormValues) => {
@@ -234,12 +234,14 @@ export function TripForm({ mode, tripId }: TripFormProps) {
             name="slug"
             render={({ field }) => (
               <Input
+                {...field}
                 label="URL adresa (slug)"
                 placeholder="napr-vikend-ve-stockholmu"
                 description="Bude pouzito v adrese: /vikend-ve-stockholmu. Pokud nevyplnite, vygeneruje se automaticky z nazvu."
-                value={field.value}
+                value={field.value ?? ""}
                 onValueChange={field.onChange}
                 onBlur={field.onBlur}
+                name={field.name}
                 isInvalid={Boolean(errors.slug)}
                 errorMessage={errors.slug?.message}
               />

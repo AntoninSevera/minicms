@@ -4,6 +4,17 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { updateTripSchema } from "@/lib/validations/trip";
 
+const toTripSlug = (value: string) =>
+  value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .replace(/[^a-z0-9\s-]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
 const toTagSlug = (value: string) =>
   value
     .toLowerCase()
@@ -89,6 +100,17 @@ async function updateTrip(req: Request, { params }: Params) {
   }
 
   const { tags, mainImageUrl, galleryImageUrls, ...tripData } = parsed.data;
+  const resolvedSlug =
+    tripData.slug !== undefined
+      ? toTripSlug(tripData.slug || parsed.data.title || "")
+      : undefined;
+
+  if (tripData.slug !== undefined && !resolvedSlug) {
+    return NextResponse.json(
+      { error: "Validation failed", details: { slug: ["Slug cannot be empty"] } },
+      { status: 400 },
+    );
+  }
 
   const normalizedTags = tags ? normalizeTags(tags) : undefined;
   const connectedTags = normalizedTags
@@ -107,6 +129,7 @@ async function updateTrip(req: Request, { params }: Params) {
     where: { id },
     data: {
       ...tripData,
+      ...(resolvedSlug !== undefined ? { slug: resolvedSlug } : {}),
       ...(mainImageUrl !== undefined ? { mainImageUrl } : {}),
       ...(galleryImageUrls !== undefined ? { galleryImageUrls } : {}),
       ...(connectedTags

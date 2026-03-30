@@ -4,6 +4,17 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createTripSchema } from "@/lib/validations/trip";
 
+const toTripSlug = (value: string) =>
+  value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .replace(/[^a-z0-9\s-]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
 const toTagSlug = (value: string) =>
   value
     .toLowerCase()
@@ -66,6 +77,14 @@ export async function POST(req: Request) {
   }
 
   const { tags, mainImageUrl, galleryImageUrls, ...tripData } = parsed.data;
+  const resolvedSlug = toTripSlug(parsed.data.slug || parsed.data.title);
+
+  if (!resolvedSlug) {
+    return NextResponse.json(
+      { error: "Validation failed", details: { slug: ["Slug cannot be empty"] } },
+      { status: 400 },
+    );
+  }
 
   const normalizedTags = normalizeTags(tags ?? []);
   const connectedTags = await Promise.all(
@@ -81,6 +100,7 @@ export async function POST(req: Request) {
   const trip = await prisma.trip.create({
     data: {
       ...tripData,
+      slug: resolvedSlug,
       mainImageUrl,
       galleryImageUrls,
       userId: session.user.id,

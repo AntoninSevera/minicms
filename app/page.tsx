@@ -4,6 +4,8 @@ import Link from "next/link";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
+export const dynamic = "force-dynamic";
+
 type HomePageProps = {
   searchParams: Promise<{ tag?: string }>;
 };
@@ -61,7 +63,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
       : {}),
   };
 
-  const [trips, tags] = hasDatabaseUrl
+  const [trips, publishedTripsForTagFilter] = hasDatabaseUrl
     ? await Promise.all([
         prisma.trip.findMany({
           where,
@@ -71,18 +73,28 @@ export default async function HomePage({ searchParams }: HomePageProps) {
           },
           orderBy: { publishDate: "desc" },
         }),
-        prisma.tag.findMany({
-          where: {
-            trips: {
-              some: {
-                published: true,
-              },
+        prisma.trip.findMany({
+          where: { published: true },
+          select: {
+            tags: {
+              select: { id: true, name: true, slug: true },
             },
           },
-          orderBy: { name: "asc" },
         }),
       ]).catch(() => [[], []])
     : [[], []];
+
+  const tags = Array.from(
+    publishedTripsForTagFilter
+      .flatMap((trip) => trip.tags)
+      .reduce((accumulator, currentTag) => {
+        if (!accumulator.has(currentTag.slug)) {
+          accumulator.set(currentTag.slug, currentTag);
+        }
+        return accumulator;
+      }, new Map<string, { id: string; name: string; slug: string }>())
+      .values(),
+  ).sort((leftTag, rightTag) => leftTag.name.localeCompare(rightTag.name, "cs"));
 
   return (
     <main className="mx-auto max-w-6xl space-y-6 p-6">

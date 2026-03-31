@@ -110,6 +110,7 @@ export function TripForm({ mode, tripId }: TripFormProps) {
   const queryClient = useQueryClient();
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState("");
+  const [lastAutoSlug, setLastAutoSlug] = useState("");
   const [mainImageFile, setMainImageFile] = useState<File | null>(null);
   const [galleryFiles, setGalleryFiles] = useState<File[]>([]);
   const [mainImagePreviewUrl, setMainImagePreviewUrl] = useState<string | null>(null);
@@ -160,6 +161,7 @@ export function TripForm({ mode, tripId }: TripFormProps) {
       });
       setTags(tripQuery.data.tags.map((tag) => tag.name));
       setTagInput("");
+      setLastAutoSlug("");
       setMainImageFile(null);
       setGalleryFiles([]);
       setUrlsToDelete([]);
@@ -215,13 +217,21 @@ export function TripForm({ mode, tripId }: TripFormProps) {
   };
 
   useEffect(() => {
-    if (mode === "create" && !slugValue) {
-      setValue("slug", slugify(titleValue), {
+    if (mode !== "create") {
+      return;
+    }
+
+    const generatedSlug = slugify(titleValue ?? "");
+    const canAutoUpdate = !slugValue || slugValue === lastAutoSlug;
+
+    if (canAutoUpdate && slugValue !== generatedSlug) {
+      setValue("slug", generatedSlug, {
         shouldValidate: true,
         shouldDirty: true,
       });
+      setLastAutoSlug(generatedSlug);
     }
-  }, [mode, titleValue, slugValue, setValue]);
+  }, [mode, titleValue, slugValue, lastAutoSlug, setValue]);
 
   const addTag = (rawTag: string) => {
     const normalizedTag = rawTag.trim();

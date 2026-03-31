@@ -77,7 +77,7 @@ export async function POST(req: Request) {
   }
 
   const { tags, mainImageUrl, galleryImageUrls, ...tripData } = parsed.data;
-  const resolvedSlug = toTripSlug(parsed.data.slug || parsed.data.title);
+  const resolvedSlug = toTripSlug(parsed.data.title);
 
   if (!resolvedSlug) {
     return NextResponse.json(

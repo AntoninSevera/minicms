@@ -74,7 +74,6 @@ export default async function HomePage({ searchParams }: HomePageProps) {
           orderBy: { publishDate: "desc" },
         }),
         prisma.trip.findMany({
-          where: { published: true },
           select: {
             tags: {
               select: { id: true, name: true, slug: true },

@@ -58,7 +58,7 @@ const forbiddenResponse = () =>
 async function assertOwnership(tripId: string, userId: string) {
   const trip = await prisma.trip.findUnique({
     where: { id: tripId },
-    select: { id: true, userId: true },
+    select: { id: true, userId: true, title: true },
   });
 
   if (!trip) {
@@ -100,12 +100,9 @@ async function updateTrip(req: Request, { params }: Params) {
   }
 
   const { tags, mainImageUrl, galleryImageUrls, ...tripData } = parsed.data;
-  const resolvedSlug =
-    tripData.slug !== undefined
-      ? toTripSlug(tripData.slug || parsed.data.title || "")
-      : undefined;
+  const resolvedSlug = toTripSlug(tripData.title ?? ownership.title);
 
-  if (tripData.slug !== undefined && !resolvedSlug) {
+  if (!resolvedSlug) {
     return NextResponse.json(
       { error: "Validation failed", details: { slug: ["Slug cannot be empty"] } },
       { status: 400 },
@@ -129,7 +126,7 @@ async function updateTrip(req: Request, { params }: Params) {
     where: { id },
     data: {
       ...tripData,
-      ...(resolvedSlug !== undefined ? { slug: resolvedSlug } : {}),
+      slug: resolvedSlug,
       ...(mainImageUrl !== undefined ? { mainImageUrl } : {}),
       ...(galleryImageUrls !== undefined ? { galleryImageUrls } : {}),
       ...(connectedTags

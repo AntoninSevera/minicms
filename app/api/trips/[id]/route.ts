@@ -69,7 +69,7 @@ async function assertOwnership(tripId: string, userId: string) {
     return { status: "forbidden" as const };
   }
 
-  return { status: "ok" as const };
+  return { status: "ok" as const, title: trip.title };
 }
 
 async function updateTrip(req: Request, { params }: Params) {

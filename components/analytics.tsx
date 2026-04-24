@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname } from "next/navigation";
 
 declare global {
   interface Window {
@@ -11,20 +11,20 @@ declare global {
 
 export function Analytics() {
   const pathname = usePathname();
-  const searchParams = useSearchParams();
 
   useEffect(() => {
     const gaId = process.env.NEXT_PUBLIC_GA_ID;
     if (!gaId) return;
 
-    const url = pathname + (searchParams ? `?${searchParams.toString()}` : "");
+    const search = typeof window !== "undefined" ? window.location.search : "";
+    const url = (pathname ?? "") + search;
 
     if (typeof window !== "undefined" && typeof window.gtag === "function") {
       window.gtag("event", "page_view", {
         page_path: url,
       });
     }
-  }, [pathname, searchParams]);
+  }, [pathname]);
 
   return null;
 }
